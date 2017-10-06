@@ -1,3 +1,2 @@
-import mysql.connector 
+import mysql.connector
 
-pass
