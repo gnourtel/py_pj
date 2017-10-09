@@ -1,2 +1,2 @@
-import mysql.connector
+import usrlib
 
