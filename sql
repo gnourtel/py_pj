@@ -1,6 +1,3 @@
-import usrlib
-
-
 DROP TABLE IF EXISTS data.journal_slow_update;
 CREATE TEMPORARY TABLE data.journal_slow_update LIKE data.sku;
 REPLACE INTO data.journal_slow_update
