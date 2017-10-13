@@ -4,8 +4,8 @@ import os
 import threading
 import time
 from math import ceil
-from postgres import Postgres
-from usrlib import query_data
+import postgres
+import usrlib
 
 class MainObserver(threading.Thread):
     """ Observer to display current status of all thread. All status
@@ -32,8 +32,17 @@ class MainObserver(threading.Thread):
         time.sleep(1)
 
 class SinglePipeline(threading.Thread):
-    """ Inherit threading to spawn pulling job. Job format must be as following:
-        
+    """ Inherit threading to spawn pulling job. Job format must be a dict with following field
+        as following:
+        {
+            source_db: 'postgresql/mysql' + '://[user]:[pass]@[host]([:port])/[database]',
+            source_query: '',
+            source_id: '',
+            source_type: '',
+            dest_db: 'postgresql/mysql',
+            dest_query: '',
+            dest_pos: ''
+        }
     """
     def __init__(self, postgresdb, mysqldb, job):
         threading.Thread.__init__(self)
@@ -51,19 +60,26 @@ class SinglePipeline(threading.Thread):
     def postgres_run(self, query, params):
         """ Runing query on postgresql """
         try:
-            db_con = Postgres('postgresql://' + self.postgresdb)
+            db_con = postgres.Postgres('postgresql://' + self.postgresdb)
             raw_result = db_con.all(query, {'value': params})
             result = [list(x) for x in raw_result]
             self.retry = 0
-        except Exception as err:
+        except postgres.psycopg2.OperationalError as err:
             if self.retry <= 3:
+                self.retry += 1
                 result = self.postgres_run(query, params)
             else:
                 result = []
-                self.result = '{}: get error on Postgrest DB - error {}'.format(
+                self.result = '{}: get error on Postgrest DB - cnn error {}'.format(
                     threading.current_thread().name,
                     err
                 )
+        except postgres.psycopg2.ProgrammingError as err:
+            result = []
+            self.result = '{}: get error on Postgrest DB - query error {}'.format(
+                threading.current_thread().name,
+                err
+            )
 
         return result
 
@@ -72,13 +88,18 @@ class SinglePipeline(threading.Thread):
         try:
             for row in range(ceil(len(params) / 1000)):
                 value = params[row * 1000 : (row + 1) * 1000]
-                result = query_data(self.mysqldb, query, value, is_commit=commit)
-        except Exception as err:
-            result = [row]
-            self.result = '{}: get error on Postgrest DB - error {}'.format(
-                threading.current_thread().name,
-                err
-            )
+                result = usrlib.query_data(self.mysqldb, query, value, is_commit=commit)
+                self.retry = 0
+        except usrlib.mysql.connector.errors.InterfaceError as err:
+            if self.retry <= 3:
+                self.retry += 1
+                result = self.mysql_run(query, value, commit=commit)
+            else:
+                result = [row]
+                self.result = '{}: get error on MySQL DB - cnn error {}'.format(
+                    threading.current_thread().name,
+                    err
+                )
         return result
 
     def job_run(self):
