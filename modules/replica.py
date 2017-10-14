@@ -43,7 +43,10 @@ class SinglePipeline(threading.Thread):
             dest_query: '',
             dest_pos: ''
         }
-    """
+
+        Note:
+        + source_db: mandatory
+        """
     def __init__(self, postgresdb, mysqldb, job):
         threading.Thread.__init__(self)
         self.daemon = True
@@ -63,7 +66,6 @@ class SinglePipeline(threading.Thread):
             db_con = postgres.Postgres('postgresql://' + self.postgresdb)
             raw_result = db_con.all(query, {'value': params})
             result = [list(x) for x in raw_result]
-            self.retry = 0
         except postgres.psycopg2.OperationalError as err:
             if self.retry <= 3:
                 self.retry += 1
@@ -81,6 +83,7 @@ class SinglePipeline(threading.Thread):
                 err
             )
 
+        self.retry = 0
         return result
 
     def mysql_run(self, query, params, commit=False):
@@ -89,7 +92,6 @@ class SinglePipeline(threading.Thread):
             for row in range(ceil(len(params) / 1000)):
                 value = params[row * 1000 : (row + 1) * 1000]
                 result = usrlib.query_data(self.mysqldb, query, value, is_commit=commit)
-                self.retry = 0
         except usrlib.mysql.connector.errors.InterfaceError as err:
             if self.retry <= 3:
                 self.retry += 1
@@ -100,6 +102,8 @@ class SinglePipeline(threading.Thread):
                     threading.current_thread().name,
                     err
                 )
+
+        self.retry = 0
         return result
 
     def job_run(self):
