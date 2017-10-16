@@ -27,7 +27,7 @@ class MainObserver(threading.Thread):
             os.system('clear')
         else:
             os.system('cls')
-        print_list = [x.result for x in self.observer_list]
+        print_list = [x.get_result for x in self.observer_list]
         print(print_list)
         time.sleep(1)
 
@@ -35,18 +35,17 @@ class SinglePipeline(threading.Thread):
     """ Inherit threading to spawn pulling job. Job format must be a dict with following field
         as following:
         {
+            job_name: '',
             source_db: 'postgresql/mysql' + '://[user]:[pass]@[host]([:port])/[database]',
             source_query: '',
             source_id: '',
-            source_type: '',
+            source_type: '',.
             dest_db: 'postgresql/mysql',
             dest_query: '',
             dest_pos: ''
+            sleep_counter: 0 => ∞
         }
-
-        Note:
-        + source_db: mandatory
-        """
+    """
     def __init__(self, postgresdb, mysqldb, job):
         threading.Thread.__init__(self)
         self.daemon = True
@@ -54,11 +53,20 @@ class SinglePipeline(threading.Thread):
         self.mysqldb = mysqldb
         self.job = job
         self.sleep_counter = 0
-        self.result = ''
+        self.result = {
+            'thread_name': threading.current_thread().name,
+            'status_complete': 0,
+            'db': '',
+            'err': ''
+        }
         self.retry = 0
 
     def run(self):
         self.job_run()
+
+    def get_result(self):
+        """ fetch result into string """
+        pass
 
     def postgres_run(self, query, params):
         """ Runing query on postgresql """
@@ -72,16 +80,10 @@ class SinglePipeline(threading.Thread):
                 result = self.postgres_run(query, params)
             else:
                 result = []
-                self.result = '{}: get error on Postgrest DB - cnn error {}'.format(
-                    threading.current_thread().name,
-                    err
-                )
+                self.result['err'] = err
         except postgres.psycopg2.ProgrammingError as err:
             result = []
-            self.result = '{}: get error on Postgrest DB - query error {}'.format(
-                threading.current_thread().name,
-                err
-            )
+            self.result['err'] = err
 
         self.retry = 0
         return result
