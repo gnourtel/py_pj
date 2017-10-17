@@ -27,8 +27,8 @@ class MainObserver(threading.Thread):
             os.system('clear')
         else:
             os.system('cls')
-        print_list = [x.get_result for x in self.observer_list]
-        print(print_list)
+        print_list = [x.get_result() for x in self.observer_list]
+        print('\n'.join(print_list))
         time.sleep(1)
 
 class SinglePipeline(threading.Thread):
@@ -36,21 +36,25 @@ class SinglePipeline(threading.Thread):
         as following:
         {
             job_name: '',
-            source_db: 'postgresql/mysql' + '://[user]:[pass]@[host]([:port])/[database]',
+            source_db: 'postgresql/mysql' + '://[user]:[pass]@[host(:port)]/[database]',
             source_query: '',
             source_id: '',
             source_type: '',.
             dest_db: 'postgresql/mysql',
-            dest_query: '',
+            dest_insert_mode: 'insert/insert-rmd',
             dest_pos: ''
-            freqs: 0 => ∞
+            freqs_period: 0 => ∞
         }
+        in which:
+        + job_name: name of the job
+        + source_db / dest_db: database string connection as format above
+        + source_id: lastest indicator which will pull data has greater value than this value
+        + source_type: number / datetime
+        + source_query: query to get 
     """
-    def __init__(self, postgresdb, mysqldb, job):
+    def __init__(self, job):
         threading.Thread.__init__(self)
         self.daemon = True
-        self.postgresdb = postgresdb
-        self.mysqldb = mysqldb
         self.job = job
         self.sleep_counter = 0
         self.result = {
@@ -60,6 +64,7 @@ class SinglePipeline(threading.Thread):
             'err': ''
         }
         self.retry = 0
+        self.stop_flag = False
 
     def run(self):
         self.job_run()
@@ -87,16 +92,16 @@ class SinglePipeline(threading.Thread):
             )
         return result
 
-    def postgres_run(self, query, params):
+    def postgres_run(self, postgresdb, query, params):
         """ Runing query on postgresql """
         try:
-            db_con = postgres.Postgres('postgresql://' + self.postgresdb)
+            db_con = postgres.Postgres('postgresql://' + postgresdb)
             raw_result = db_con.all(query, {'value': params})
             result = [list(x) for x in raw_result]
         except postgres.psycopg2.OperationalError as err:
             if self.retry <= 3:
                 self.retry += 1
-                result = self.postgres_run(query, params)
+                result = self.postgres_run(postgresdb, query, params)
             else:
                 result = []
                 self.result['err'] = err
@@ -107,16 +112,16 @@ class SinglePipeline(threading.Thread):
         self.retry = 0
         return result
 
-    def mysql_run(self, query, params, commit=False):
+    def mysql_run(self, mysqldb, query, params, commit=False):
         """ Running query on Mysql """
         try:
             for row in range(ceil(len(params) / 1000)):
                 value = params[row * 1000 : (row + 1) * 1000]
-                result = usrlib.query_data(self.mysqldb, query, value, is_commit=commit)
+                result = usrlib.query_data(mysqldb, query, value, is_commit=commit)
         except usrlib.mysql.connector.errors.InterfaceError as err:
             if self.retry <= 3:
                 self.retry += 1
-                result = self.mysql_run(query, value, commit=commit)
+                result = self.mysql_run(query, mysqldb, value, commit=commit)
             else:
                 result = [row]
                 self.result = '{}: get error on MySQL DB - cnn error {}'.format(
@@ -129,4 +134,5 @@ class SinglePipeline(threading.Thread):
 
     def job_run(self):
         """ Main job """
-        pass
+        while self.stop_flag is False:
+            pass
