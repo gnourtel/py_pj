@@ -43,7 +43,7 @@ class SinglePipeline(threading.Thread):
             dest_db: 'postgresql/mysql',
             dest_query: '',
             dest_pos: ''
-            sleep_counter: 0 => ∞
+            freqs: 0 => ∞
         }
     """
     def __init__(self, postgresdb, mysqldb, job):
@@ -66,7 +66,26 @@ class SinglePipeline(threading.Thread):
 
     def get_result(self):
         """ fetch result into string """
-        pass
+        if self.sleep_counter != 0:
+            result = '{}: {} is sleeping for {} s'.format(
+                self.result['thread_name'],
+                self.result['job_name'],
+                self.sleep_counter
+            )
+        elif self.result['status_complete'] != 0:
+            result = '{}: {} is complete task in {}'.format(
+                self.result['thread_name'],
+                self.result['job_name'],
+                self.result['status_complete']
+            )
+        else:
+            result = '{}: {} got error in db {} - error: {}'.format(
+                self.result['thread_name'],
+                self.result['job_name'],
+                self.result['db'],
+                self.result['err']
+            )
+        return result
 
     def postgres_run(self, query, params):
         """ Runing query on postgresql """
