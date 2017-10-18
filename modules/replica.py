@@ -3,6 +3,7 @@
 import os
 import threading
 import time
+import re
 from math import ceil
 from datetime import datetime
 import postgres
@@ -54,7 +55,8 @@ class SinglePipeline(threading.Thread):
         in which:
         + job_name: name of the job
         + source_db / dest_db: database string connection as format above
-        + source_id: lastest indicator which will pull data has greater value than this value.
+        + source_id: lastest indicator which will pull data has greater value than this value,
+                     must be passed in as an object
         + source_type: number / datetime
         + source_query: query to get data from source. Must be formatted accordingly because
                         this will be the standard to create insert query:
@@ -86,24 +88,26 @@ class SinglePipeline(threading.Thread):
 
     def get_result(self):
         """ fetch result into string """
-        if self.sleep_counter != 0:
-            result = '{}: {} is sleeping for {} s'.format(
+        if self.result['err'] != '':
+            result = '{}: {} got error in db {} - error: {} - sleeping {} s'.format(
                 self.result['thread_name'],
                 self.result['job_name'],
+                self.result['db'],
+                self.result['err'],
                 self.sleep_counter
             )
+            
         elif self.result['status_complete'] != 0:
-            result = '{}: {} is complete task in {}'.format(
+            result = '{}: {} is complete task in {} s'.format(
                 self.result['thread_name'],
                 self.result['job_name'],
                 self.result['status_complete']
             )
         else:
-            result = '{}: {} got error in db {} - error: {}'.format(
+            result = '{}: {} is sleeping for {} s'.format(
                 self.result['thread_name'],
                 self.result['job_name'],
-                self.result['db'],
-                self.result['err']
+                self.sleep_counter
             )
         return result
 
@@ -161,9 +165,34 @@ class SinglePipeline(threading.Thread):
             freqs_period: 0 => ∞
         }
         """
+
         while self.stop_flag is False:
+            start_time = time.time()
             #Source query
-            pass
+            source = self.job['source_db']
+            source_param = self.convert_source_id(
+                self.job['source_id'],
+                self.job['source_type'] == 'datetime')
+            if 'mysql' in source:
+                result = self.mysql_run(
+                    self.convert_db(source),
+                    self.job['source_query'],
+                    source_param
+                )
+            else:
+                result = self.postgres_run(
+                    source,
+                    self.job['source_query'],
+                    source_param
+                )
+
+            if self.result['err'] == '':
+                #insert query
+                self.sleep_counter = 0
+                self.result['status_complete'] = time.time() - start_time
+            else:
+                self.sleep_counter += 10
+                time.sleep(self.sleep_counter)
 
     @staticmethod
     def convert_source_id(source_id, time_cv=False):
@@ -178,3 +207,14 @@ class SinglePipeline(threading.Thread):
 
     @staticmethod
     def convert_db(db_string):
+        """ switch from format into dict used by mysql """
+        user, pwd, host, _, dtb = re.match(
+            'mysql://(.*?):(.*?)@(.*?)(|:.*?)/(.*)',
+            db_string
+        )
+        return {
+            'user': user,
+            'password': pwd,
+            'host': host,
+            'database': dtb
+        }
