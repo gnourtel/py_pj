@@ -4,6 +4,7 @@ import os
 import threading
 import time
 from math import ceil
+from datetime import datetime
 import postgres
 import usrlib
 
@@ -30,6 +31,11 @@ class MainObserver(threading.Thread):
         print_list = [x.get_result() for x in self.observer_list]
         print('\n'.join(print_list))
         time.sleep(1)
+
+    def stop_process(self):
+        """ stop all process, invoker under Keypresserror"""
+        for obs in self.observer_list:
+            obs.stop_flag = True
 
 class SinglePipeline(threading.Thread):
     """ Inherit threading to spawn pulling job. Job format must be a dict with following field
@@ -124,15 +130,15 @@ class SinglePipeline(threading.Thread):
     def mysql_run(self, mysqldb, query, params, commit=False):
         """ Running query on Mysql """
         try:
-            for row in range(ceil(len(params) / 1000)):
-                value = params[row * 1000 : (row + 1) * 1000]
+            for row_mpl in range(ceil(len(params) / 1000)):
+                value = params[row_mpl * 1000 : (row_mpl + 1) * 1000]
                 result = usrlib.query_data(mysqldb, query, value, is_commit=commit)
         except usrlib.mysql.connector.errors.InterfaceError as err:
             if self.retry <= 3:
                 self.retry += 1
                 result = self.mysql_run(query, mysqldb, value, commit=commit)
             else:
-                result = [row]
+                result = [row_mpl * 1000]
                 self.result = '{}: get error on MySQL DB - cnn error {}'.format(
                     threading.current_thread().name,
                     err
@@ -142,6 +148,33 @@ class SinglePipeline(threading.Thread):
         return result
 
     def job_run(self):
-        """ Main job """
+        """ Main job
+        {
+            job_name: '',
+            source_db: 'postgresql/mysql' + '://[user]:[pass]@[host(:port)]/[database]',
+            source_query: '',
+            source_id: '',
+            source_type: '',
+            source_pos: '',
+            dest_db: 'postgresql/mysql',
+            dest_insert_mode: 'insert/insert-rmd',
+            freqs_period: 0 => ∞
+        }
+        """
         while self.stop_flag is False:
+            #Source query
             pass
+
+    @staticmethod
+    def convert_source_id(source_id, time_cv=False):
+        """ convert source_id into correct one for query and logging"""
+        if time_cv is True:
+            result = datetime.fromtimestamp(source_id)
+        elif isinstance(source_id, datetime):
+            result = datetime.timestamp(source_id)
+        else:
+            result = source_id
+        return result
+
+    @staticmethod
+    def convert_db(db_string):
