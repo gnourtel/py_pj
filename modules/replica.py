@@ -39,18 +39,27 @@ class SinglePipeline(threading.Thread):
             source_db: 'postgresql/mysql' + '://[user]:[pass]@[host(:port)]/[database]',
             source_query: '',
             source_id: '',
-            source_type: '',.
+            source_type: '',
+            source_pos: '',
             dest_db: 'postgresql/mysql',
             dest_insert_mode: 'insert/insert-rmd',
-            dest_pos: ''
             freqs_period: 0 => ∞
         }
         in which:
         + job_name: name of the job
         + source_db / dest_db: database string connection as format above
-        + source_id: lastest indicator which will pull data has greater value than this value
+        + source_id: lastest indicator which will pull data has greater value than this value.
         + source_type: number / datetime
-        + source_query: query to get 
+        + source_query: query to get data from source. Must be formatted accordingly because
+                        this will be the standard to create insert query:
+                        * source and destination columns must be in same name or
+                        * all alias must be after ' AS ' string and same with destination
+                        * all column must be in first select and from
+        + dest_insert_mode: must be either insert or insert-rmd (remove_duplicate)
+        + freqs_period: number of second between last successful initiate and current initiate. If
+                        last job is still pending at the time next initiate would be invoke, the
+                        new job will be delayed until it meet the period
+        + source_id will be replace by the last updated id successfully into destination
     """
     def __init__(self, job):
         threading.Thread.__init__(self)
