@@ -72,20 +72,44 @@ select
 		order by
 			psh.updated_at desc limit 1
 	) as "tpl_failed_reason_code",
-	-- ready to be shipped timestamp
+	-- ready to be shipped timestamp 23/11/2017
 (
 		select
-			min( psh.updated_at )::timestamp at time zone 'Asia/Ho_Chi_Minh' at time zone 'Asia/Ho_Chi_Minh'
+			coalesce(
+				min( psh.processed_date ),
+				min( psh.updated_at )
+			)::timestamp at time zone 'Asia/Ho_Chi_Minh' at time zone 'Asia/Ho_Chi_Minh'
 		from
 			public.package_status_history psh
 		where
 			psh.package_id = pck."id"
 			and psh.STATUS in('package_ready_to_be_shipped')
-	) as "shipped_timestamp",
+	) as "ready_to_be_shipped_timestamp",
+	-- transit to shipped timestamp 23/11/2017
+(
+		select
+			coalesce(
+				min( psh.processed_date ),
+				min( psh.updated_at )
+			)::timestamp at time zone 'Asia/Ho_Chi_Minh' at time zone 'Asia/Ho_Chi_Minh'
+		from
+			public.package_status_history psh
+		where
+			psh.package_id = pck."id"
+			and psh.STATUS in(
+				'domestic_pickup/sign_in_success',
+				'domestic_sc_sign_in_success',
+				'domestic_ib_success_first_mile_hub',
+				'domestic_ob_success_first_mile_hub'
+			)
+	) as "transit_to_shipped_timestamp",
 	-- shipped timestamp
 (
 		select
-			min( psh.updated_at )::timestamp at time zone 'Asia/Ho_Chi_Minh' at time zone 'Asia/Ho_Chi_Minh'
+			coalesce(
+				min( psh.processed_date ),
+				min( psh.updated_at )
+			)::timestamp at time zone 'Asia/Ho_Chi_Minh' at time zone 'Asia/Ho_Chi_Minh'
 		from
 			public.package_status_history psh
 		where
@@ -93,15 +117,16 @@ select
 			and psh.STATUS in(
 				'domestic_package_stationed_in',
 				'domestic_package_stationed_out',
-				'domestic_pickup/sign_in_success',
-				'domestic_sc_sign_in_success',
 				'domestic_ob_success_in_sort_center'
 			)
 	) as "shipped_timestamp",
 	-- min first attempt timestamp
 (
 		select
-			min( psh.updated_at )::timestamp at time zone 'Asia/Ho_Chi_Minh' at time zone 'Asia/Ho_Chi_Minh'
+			coalesce(
+				min( psh.processed_date ),
+				min( psh.updated_at )
+			)::timestamp at time zone 'Asia/Ho_Chi_Minh' at time zone 'Asia/Ho_Chi_Minh'
 		from
 			public.package_status_history psh
 		where
@@ -119,7 +144,10 @@ select
 	-- min delivered_timestamp
 (
 		select
-			min( psh.updated_at )::timestamp at time zone 'Asia/Ho_Chi_Minh'
+			coalesce(
+				min( psh.processed_date ),
+				min( psh.updated_at )
+			)::timestamp at time zone 'Asia/Ho_Chi_Minh'
 		from
 			public.package_status_history psh
 		where
@@ -129,7 +157,10 @@ select
 	-- min delivery_failed timestamp
 (
 		select
-			min( psh.updated_at )::timestamp at time zone 'Asia/Ho_Chi_Minh'
+			coalesce(
+				min( psh.processed_date ),
+				min( psh.updated_at )
+			)::timestamp at time zone 'Asia/Ho_Chi_Minh'
 		from
 			public.package_status_history psh
 		where
@@ -139,7 +170,10 @@ select
 	-- min package_returning timestamp
 (
 		select
-			min( psh.updated_at )::timestamp at time zone 'Asia/Ho_Chi_Minh'
+			coalesce(
+				min( psh.processed_date ),
+				min( psh.updated_at )
+			)::timestamp at time zone 'Asia/Ho_Chi_Minh'
 		from
 			public.package_status_history psh
 		where
@@ -153,7 +187,10 @@ select
 	-- min package_returned timestamp
 (
 		select
-			min( psh.updated_at )::timestamp at time zone 'Asia/Ho_Chi_Minh'
+			coalesce(
+				min( psh.processed_date ),
+				min( psh.updated_at )
+			)::timestamp at time zone 'Asia/Ho_Chi_Minh'
 		from
 			public.package_status_history psh
 		where
@@ -163,7 +200,10 @@ select
 	-- min shipper_received_timestamp
 (
 		select
-			min( psh.updated_at )::timestamp at time zone 'Asia/Ho_Chi_Minh'
+			coalesce(
+				min( psh.processed_date ),
+				min( psh.updated_at )
+			)::timestamp at time zone 'Asia/Ho_Chi_Minh'
 		from
 			public.package_status_history psh
 		where
@@ -173,8 +213,9 @@ select
 from
 	public.packages as pck
 where
-	pck.updated_at > current_timestamp - interval '1 hour'
+	pck.updated_at > current_timestamp - interval '2 hour'
 	and pck.platform_name in(
 		'LAZADA_VN',
 		'OMS_VN'
-	);
+	)
+	limit 1000;

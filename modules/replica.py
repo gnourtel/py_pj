@@ -6,6 +6,7 @@ import time
 import re
 from math import ceil
 from datetime import datetime
+from configparser import ConfigParser
 import postgres
 import usrlib
 
@@ -72,7 +73,17 @@ class SinglePipeline(threading.Thread):
     def __init__(self, job):
         threading.Thread.__init__(self)
         self.daemon = True
-        self.job = job
+        self.job = {
+            'job_name': job['job_name'],
+            'source_db': job['source_db'],
+            'source_query': job['source_query'],
+            'source_id': job['source_id'],
+            'source_type': job['source_type'],
+            'source_pos': job['source_pos'],
+            'dest_db': job['dest_db'],
+            'dest_insert_mode': job['dest_insert_mode'],
+            'freqs_period': job['freqs_period']
+        }
         self.sleep_counter = 0
         self.result = {
             'thread_name': threading.current_thread().name,
