@@ -13,9 +13,9 @@ import usrlib
 class MainObserver(threading.Thread):
     """ Observer to display current status of all thread. All status
     is read from registered object """
-    observer_list = []
     def __init__(self):
         threading.Thread.__init__(self)
+        self.observer_list = []
 
     def run(self):
         self.print_out()
@@ -50,6 +50,7 @@ class SinglePipeline(threading.Thread):
             source_type: '',
             source_pos: '',
             dest_db: 'postgresql/mysql',
+            dest_table: '',
             dest_insert_mode: 'insert/insert-rmd',
             freqs_period: 0 => ∞
         }
@@ -81,6 +82,7 @@ class SinglePipeline(threading.Thread):
             'source_type': job['source_type'],
             'source_pos': job['source_pos'],
             'dest_db': job['dest_db'],
+            'dest_table': job['dest_table'],
             'dest_insert_mode': job['dest_insert_mode'],
             'freqs_period': job['freqs_period']
         }
