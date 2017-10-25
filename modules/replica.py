@@ -16,23 +16,25 @@ class MainObserver(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
         self.observer_list = []
+        self.os_sc_clear = 'clear' if os.name == 'posix' else 'cls'
 
     def run(self):
         self.print_out()
 
     def register(self, target):
         """ register object """
-        self.observer_list.insert(target)
+        self.observer_list.append(target)
 
     def print_out(self):
         """ print to the screen every 1 second """
-        if os.name == 'posix':
-            os.system('clear')
-        else:
-            os.system('cls')
-        print_list = [x.get_result() for x in self.observer_list]
-        print('\n'.join(print_list))
-        time.sleep(1)
+        try:
+            while True:
+                os.system(self.os_sc_clear)
+                print_list = [x.get_result() for x in self.observer_list]
+                print('\n'.join(print_list))
+                time.sleep(1)
+        except KeyboardInterrupt:
+            self.stop_process()
 
     def stop_process(self):
         """ stop all process, invoker under Keypresserror"""
