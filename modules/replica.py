@@ -6,7 +6,7 @@ import time
 import re
 from math import ceil
 from datetime import datetime
-from configparser import ConfigParser
+    from configparser import ConfigParser
 import postgres
 import usrlib
 
@@ -17,6 +17,7 @@ class MainObserver(threading.Thread):
         threading.Thread.__init__(self)
         self.observer_list = []
         self.os_sc_clear = 'clear' if os.name == 'posix' else 'cls'
+        self.stop_flag = False
 
     def run(self):
         self.print_out()
@@ -27,19 +28,17 @@ class MainObserver(threading.Thread):
 
     def print_out(self):
         """ print to the screen every 1 second """
-        try:
-            while True:
-                os.system(self.os_sc_clear)
-                print_list = [x.get_result() for x in self.observer_list]
-                print('\n'.join(print_list))
-                time.sleep(1)
-        except KeyboardInterrupt:
-            self.stop_process()
+        while self.stop_flag is False:
+            os.system(self.os_sc_clear)
+            print_list = [x.get_result() for x in self.observer_list]
+            print('\n'.join(print_list))
+            time.sleep(1)
 
     def stop_process(self):
         """ stop all process, invoker under Keypresserror"""
         for obs in self.observer_list:
             obs.stop_flag = True
+        self.stop_flag = True
 
 class SinglePipeline(threading.Thread):
     """ Inherit threading to spawn pulling job. Job format must be a dict with following field
