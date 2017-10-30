@@ -6,7 +6,7 @@ import time
 import re
 from math import ceil
 from datetime import datetime
-    from configparser import ConfigParser
+from configparser import ConfigParser
 import postgres
 import usrlib
 
@@ -40,6 +40,24 @@ class MainObserver(threading.Thread):
             obs.stop_flag = True
         self.stop_flag = True
 
+class LogIndex(object):
+    """ Logging index into Ini file """
+    def __init__(self, url):
+        self.lock = False
+        self.url = url
+        self.config = ConfigParser()
+        self.config.read(url)
+
+    def write_log(self, log_id, log_num):
+        """ write back into log file """
+        while self.lock is True:
+            pass
+        self.lock = True
+        self.config['Last_Index'][log_id] = str(log_num)
+        with open(self.url, 'w') as writer:
+            self.config.write(writer)
+        self.lock = False
+
 class SinglePipeline(threading.Thread):
     """ Inherit threading to spawn pulling job. Job format must be a dict with following field
         as following:
@@ -72,21 +90,9 @@ class SinglePipeline(threading.Thread):
                         new job will be delayed until it meet the period
         + source_id will be replace by the last updated id successfully into destination
     """
-    def __init__(self, job):
-        threading.Thread.__init__(self)
-        self.daemon = True
-        self.job = {
-            'job_name': job['job_name'],
-            'source_db': job['source_db'],
-            'source_query': job['source_query'],
-            'source_id': job['source_id'],
-            'source_type': job['source_type'],
-            'source_pos': job['source_pos'],
-            'dest_db': job['dest_db'],
-            'dest_table': job['dest_table'],
-            'dest_insert_mode': job['dest_insert_mode'],
-            'freqs_period': job['freqs_period']
-        }
+    def __init__(self, job, obs, log):
+        threading.Thread.__init__(self, daemon=True)
+        self.job = job
         self.sleep_counter = 0
         self.result = {
             'thread_name': threading.current_thread().name,
@@ -96,8 +102,11 @@ class SinglePipeline(threading.Thread):
         }
         self.retry = 0
         self.stop_flag = False
+        self.obs = obs
+        self.log = log
 
     def run(self):
+        self.obs.register(self)
         self.job_run()
 
     def get_result(self):
@@ -110,7 +119,7 @@ class SinglePipeline(threading.Thread):
                 self.result['err'],
                 self.sleep_counter
             )
-            
+
         elif self.result['status_complete'] != 0:
             result = '{}: {} is complete task in {} s'.format(
                 self.result['thread_name'],
@@ -157,31 +166,16 @@ class SinglePipeline(threading.Thread):
                 result = self.mysql_run(query, mysqldb, value, commit=commit)
             else:
                 result = [row_mpl * 1000]
-                self.result = '{}: get error on MySQL DB - cnn error {}'.format(
-                    threading.current_thread().name,
-                    err
-                )
+                self.result['err'] = err
 
         self.retry = 0
         return result
 
     def job_run(self):
-        """ Main job
-        {
-            job_name: '',
-            source_db: 'postgresql/mysql' + '://[user]:[pass]@[host(:port)]/[database]',
-            source_query: '',
-            source_id: '',
-            source_type: '',
-            source_pos: '',
-            dest_db: 'postgresql/mysql',
-            dest_insert_mode: 'insert/insert-rmd',
-            freqs_period: 0 => ∞
-        }
-        """
-
+        """ Main job """
         while self.stop_flag is False:
             start_time = time.time()
+
             #Source query
             source = self.job['source_db']
             source_param = self.convert_source_id(
