@@ -92,7 +92,7 @@ class SinglePipeline(threading.Thread):
     """
     def __init__(self, job, obs, log):
         threading.Thread.__init__(self, daemon=True)
-        self.job = job
+        self.job = self.validate_job(job)
         self.sleep_counter = 0
         self.result = {
             'thread_name': threading.current_thread().name,
@@ -226,3 +226,23 @@ class SinglePipeline(threading.Thread):
             'host': host,
             'database': dtb
         }
+
+    @staticmethod
+    def validate_job(job):
+        """ Validate job variable if that """
+        require_list = [
+            'job_name',
+            'source_db',
+            'source_query',
+            'source_id',
+            'source_type',
+            'source_pos',
+            'dest_db',
+            'dest_table',
+            'dest_insert_mode',
+            'freqs_period'
+        ]
+        if all(field in job for field in require_list):
+            return
+        else
+            return
