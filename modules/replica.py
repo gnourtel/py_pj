@@ -96,7 +96,8 @@ class SinglePipeline(threading.Thread):
         self.sleep_counter = 0
         self.result = {
             'thread_name': threading.current_thread().name,
-            'status_complete': 0,
+            'status_complete': '',
+            'time': 0,
             'db': '',
             'err': ''
         }
