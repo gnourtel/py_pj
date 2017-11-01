@@ -8,7 +8,7 @@ from math import ceil
 from datetime import datetime, timedelta
 from configparser import ConfigParser
 import postgres
-import usrlib
+from modules import usrlib
 
 class MainObserver(threading.Thread):
     """ Observer to display current status of all thread. All status
@@ -57,6 +57,10 @@ class LogIndex(object):
         with open(self.url, 'w') as writer:
             self.config.write(writer)
         self.lock = False
+    
+    def read_log(self, log_id):
+        """ read from log file """
+        return self.config['Last_Index'][log_id]
 
 class SinglePipeline(threading.Thread):
     """ Inherit threading to spawn pulling job. Job format must be a dict with following field
@@ -166,7 +170,7 @@ class SinglePipeline(threading.Thread):
                 self.retry += 1
                 result = self.mysql_run(query, mysqldb, value, commit=commit)
             else:
-                result = [row_mpl * 1000]
+                result = row_mpl * 1000 if commit is True else []
                 self.result['err'] = err
 
         self.retry = 0
@@ -179,8 +183,9 @@ class SinglePipeline(threading.Thread):
 
             #Source query
             source = self.job['source_db']
+            dest = self.job['dest']
             source_param = self.convert_source_id(
-                self.job['source_id'],
+                self.log.read_log(job['source_id']),
                 self.job['source_type'] == 'datetime')
             if 'mysql' in source:
                 result = self.mysql_run(
@@ -195,19 +200,44 @@ class SinglePipeline(threading.Thread):
                     source_param
                 )
 
-            if self.result['err'] == '':
-                #insert query
-                self.sleep_counter = 0
-                self.result['status_complete'] = time.time() - start_time
+            if result:
+                #Insert to local
+                ins_result = self.mysql_run(
+                    self.convert_db(dest),
+                    self.job[''],
+                    result,
+                    commit=True
+                )
+                if ins_result >= len(result):
+                    self.result['status_complete'] = 'success'
+                    self.result['time'] = time.time() - start_time
+                    self.sleep_counter = 0
+                    ins_result = len(result)
+                    self.result['err'] = ''
+                else:
+                    self.result['status_complete'] = 'fail'
+                    self.result['db'] = 'dest'
+
+                self.log.write_log(
+                    self.job['source_id'],
+                    result[ins_result][self.job['source_pos']]
+                )
             else:
-                self.sleep_counter += 10
-                time.sleep(self.sleep_counter)
+                self.result['status_complete'] = 'fail'
+                self.result['db'] = 'source'
+                self.sleeping()
+
+    def sleeping(self):
+        """ sleeping trigger """
+        self.sleep_counter += 10
+        time.sleep(self.sleep_counter)
 
     @staticmethod
     def convert_source_id(source_id, time_cv=False, time_offset=0):
         """ convert source_id into correct one for query and logging"""
         if time_cv is True:
             result = datetime.fromtimestamp(source_id) - timedelta(hours=time_offset)
+            result = result.strftime('%Y-%m-%d %H:%M:%S')
         elif isinstance(source_id, datetime):
             result = datetime.timestamp(source_id)
         else:
@@ -245,8 +275,6 @@ class SinglePipeline(threading.Thread):
         ]
         if all(field in job for field in require_list):
             return job
-        else:
-            return None
 
 def run(job_list, log_url):
     """ main function to run application """
