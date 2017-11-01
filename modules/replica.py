@@ -5,7 +5,7 @@ import threading
 import time
 import re
 from math import ceil
-from datetime import datetime
+from datetime import datetime, timedelta
 from configparser import ConfigParser
 import postgres
 import usrlib
@@ -204,10 +204,10 @@ class SinglePipeline(threading.Thread):
                 time.sleep(self.sleep_counter)
 
     @staticmethod
-    def convert_source_id(source_id, time_cv=False):
+    def convert_source_id(source_id, time_cv=False, time_offset=0):
         """ convert source_id into correct one for query and logging"""
         if time_cv is True:
-            result = datetime.fromtimestamp(source_id)
+            result = datetime.fromtimestamp(source_id) - timedelta(hours=time_offset)
         elif isinstance(source_id, datetime):
             result = datetime.timestamp(source_id)
         else:
@@ -244,6 +244,6 @@ class SinglePipeline(threading.Thread):
             'freqs_period'
         ]
         if all(field in job for field in require_list):
-            return
-        else
-            return
+            return job
+        else:
+            return None
