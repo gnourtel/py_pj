@@ -57,7 +57,7 @@ class LogIndex(object):
         with open(self.url, 'w') as writer:
             self.config.write(writer)
         self.lock = False
-    
+
     def read_log(self, log_id):
         """ read from log file """
         return self.config['Last_Index'][log_id]
@@ -73,8 +73,7 @@ class SinglePipeline(threading.Thread):
             source_type: '',
             source_pos: '',
             dest_db: 'postgresql/mysql',
-            dest_table: '',
-            dest_insert_mode: 'insert/insert-rmd',
+            dest_query: '',
             freqs_period: 0 => ∞
         }
         in which:
@@ -83,12 +82,7 @@ class SinglePipeline(threading.Thread):
         + source_id: lastest indicator which will pull data has greater value than this value,
                      must be passed in as an object
         + source_type: number / datetime
-        + source_query: query to get data from source. Must be formatted accordingly because
-                        this will be the standard to create insert query:
-                        * source and destination columns must be in same name or
-                        * all alias must be after ' AS ' string and same with destination
-                        * all column must be in first select and from
-        + dest_insert_mode: must be either insert or insert-rmd (remove_duplicate)
+        + source_query: query to get data from source.
         + freqs_period: number of second between last successful initiate and current initiate. If
                         last job is still pending at the time next initiate would be invoke, the
                         new job will be delayed until it meet the period
@@ -185,7 +179,7 @@ class SinglePipeline(threading.Thread):
             source = self.job['source_db']
             dest = self.job['dest']
             source_param = self.convert_source_id(
-                self.log.read_log(job['source_id']),
+                self.log.read_log(self.job['source_id']),
                 self.job['source_type'] == 'datetime')
             if 'mysql' in source:
                 result = self.mysql_run(
@@ -204,7 +198,7 @@ class SinglePipeline(threading.Thread):
                 #Insert to local
                 ins_result = self.mysql_run(
                     self.convert_db(dest),
-                    self.job[''],
+                    self.job['dest_query'],
                     result,
                     commit=True
                 )
@@ -269,8 +263,7 @@ class SinglePipeline(threading.Thread):
             'source_type',
             'source_pos',
             'dest_db',
-            'dest_table',
-            'dest_insert_mode',
+            'dest_query',
             'freqs_period'
         ]
         if all(field in job for field in require_list):
