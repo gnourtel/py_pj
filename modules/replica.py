@@ -1,4 +1,4 @@
-""" Syncing Data """
+""" Replication Data between two DBs"""
 
 import os
 import threading
@@ -247,3 +247,19 @@ class SinglePipeline(threading.Thread):
             return job
         else:
             return None
+
+def run(job_list, log_url):
+    """ main function to run application """
+    try:
+        screen_update = MainObserver()
+        log_file = LogIndex(log_url)
+        job_threads = []
+        for job in job_list:
+            thread = SinglePipeline(job, screen_update, log_file)
+            job_threads.append(thread)
+            thread.start()
+    except KeyboardInterrupt:
+        for running_job in job_threads:
+            running_job.join()
+        screen_update.stop_process()
+        print("\nExitting...")
